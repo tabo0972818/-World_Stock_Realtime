@@ -18,7 +18,6 @@ st.markdown("""
     .price-val { font-size: 30px; font-weight: bold; margin: 2px 0; }
     .change-val { font-size: 18px; font-weight: bold; }
     
-    /* 更新ボタンのデザイン（青くて丸い） */
     div.stButton > button {
         width: 100%;
         background-color: #007aff !important;
@@ -49,14 +48,12 @@ def get_market_data(ticker):
         return {"df": df, "curr": meta['regularMarketPrice'], "prev": meta['previousClose']}
     except: return None
 
-# ヘッダーと更新ボタン
 st.title("📈 世界の株価 Realtime")
 
-# 💡 ここにボタンを配置。押されたら即座に再読み込み
 if st.button("🔄 データを今すぐ更新"):
     st.rerun()
 
-st.write("") # 少し余白
+st.write("")
 
 cols = st.columns(3)
 
@@ -73,25 +70,34 @@ for i, (name, ticker, flag) in enumerate(stocks):
             st.markdown(f'<div class="change-val" style="color: {color};">{pct:+.2f}%</div>', unsafe_allow_html=True)
             
             fig = px.line(data['df'], y='Price')
+            
+            # 💡【解決策】グラフに触っても反応しないようにする設定
             fig.update_layout(
                 margin=dict(l=0, r=0, t=5, b=5),
                 height=150,
                 xaxis_visible=False,
                 yaxis_visible=False,
-                yaxis=dict(fixedrange=True, autorange=True), 
+                yaxis=dict(fixedrange=True, autorange=True), # ズーム不可
+                xaxis=dict(fixedrange=True),                # ズーム不可
+                hovermode=False,                             # ホバー時の数値を非表示
                 paper_bgcolor="rgba(0,0,0,0)",
                 plot_bgcolor="rgba(0,0,0,0)",
-                showlegend=False
+                showlegend=False,
+                dragmode=False                               # ドラッグ操作を無効化
             )
-            fig.update_traces(line_color='#1f77b4', line_width=3)
+            fig.update_traces(
+                line_color='#1f77b4', 
+                line_width=3,
+                hoverinfo='none'                             # 個別のデータ点反応も消す
+            )
             
-            st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
+            # configで右上のツールバーも非表示にする
+            st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False, 'staticPlot': True})
             
         else:
             st.markdown(f'<div class="stock-name">{flag} {name}</div>', unsafe_allow_html=True)
             st.error("データ取得エラー")
         st.markdown('</div>', unsafe_allow_html=True)
 
-# 10秒自動更新（待機中にボタンが押されるとリセットされます）
 time.sleep(10)
 st.rerun()
