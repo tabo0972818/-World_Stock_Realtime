@@ -1,103 +1,81 @@
 import streamlit as st
 import pandas as pd
-import requests
+from yahooquery import Ticker
 import time
+from datetime import datetime
 import plotly.express as px
 
-st.set_page_config(page_title="World Stock Realtime", layout="wide")
+st.set_page_config(page_title="Market Pro", layout="wide")
 
-# デザイン設定
-st.markdown("""
-    <style>
-    .stApp { background-color: #000000; color: white; }
-    .card-container {
-        border: 1px solid #3a3a3c; border-radius: 12px; padding: 10px; 
-        background-color: #1c1c1e; margin-bottom: 20px; text-align: center;
-    }
-    .stock-name { font-size: 16px; font-weight: bold; color: #8e8e93; }
-    .price-val { font-size: 30px; font-weight: bold; margin: 2px 0; }
-    .change-val { font-size: 18px; font-weight: bold; }
-    
-    div.stButton > button {
-        width: 100%;
-        background-color: #007aff !important;
-        color: white !important;
-        border-radius: 12px !important;
-        border: none !important;
-        height: 3em !important;
-        font-weight: bold !important;
-    }
-    </style>
-    """, unsafe_allow_html=True)
+# (デザインCSSは省略...前回と同じものを使用してください)
 
-stocks = [
-    ("日経平均", "^N225", "🇯🇵"), ("ダウ平均", "^DJI", "🇺🇸"), ("ドル円", "JPY=X", "🇯🇵🇺🇸"),
-    ("ナスダック", "^IXIC", "🇺🇸"), ("S&P500", "^GSPC", "🇺🇸"), ("BTC(円)", "BTC-JPY", "₿"),
-    ("半導体SOX", "^SOX", "🇺🇸"), ("ゴールド", "GC=F", "🟡"), ("TOPIX", "1306.T", "🇯🇵")
-]
+# 取得したいシンボルをリスト化
+symbols = ["^N225", "NIY=F", "NK225E=F", "1306.T", "MTI=F", "JPY=X", "^DJI", "^IXIC", "^SOX", "GC=F", "^GSPC", "BTC-JPY"]
+names = ["日経平均", "日経先物", "日経時間外", "TOPIX", "TOPIX先物", "ドル円", "ダウ平均", "ナスダック", "半導体指数", "ゴールド(円/g)", "S&P500", "BTC(円)"]
+flags = ["🇯🇵", "🇯🇵🚀", "🇯🇵⏰", "🇯🇵", "🇯🇵🚀", "🇯🇵🇺🇸", "🇺🇸", "🇺🇸", "🇺🇸🚀", "🟡", "🇺🇸", "₿"]
 
-def get_market_data(ticker):
-    url = f"https://query1.finance.yahoo.com/v8/finance/chart/{ticker}?interval=2m&range=1d"
-    headers = {'User-Agent': 'Mozilla/5.0'}
+def get_all_data():
     try:
-        res = requests.get(url, headers=headers, timeout=10).json()
-        result = res['chart']['result'][0]
-        prices = result['indicators']['quote'][0]['close']
-        df = pd.DataFrame(prices, columns=['Price']).dropna()
-        meta = result['meta']
-        return {"df": df, "curr": meta['regularMarketPrice'], "prev": meta['previousClose']}
-    except: return None
+        t = Ticker(symbols)
+        # 12銘柄の現在値を一括取得（爆速）
+        prices = t.price
+        # 12銘柄のチャートデータを一括取得
+        history = t.history(period="1d", interval="2m")
+        return prices, history
+    except:
+        return None, None
 
-st.title("📈 世界の株価 Realtime")
+st.title("株価確認アプリ")
 
-if st.button("🔄 データを今すぐ更新"):
-    st.rerun()
-
-st.write("")
+prices_data, history_data = get_all_data()
+fx_rate = prices_data['JPY=X'].get('regularMarketPrice', 150.0) if prices_data else 150.0
 
 cols = st.columns(3)
 
-for i, (name, ticker, flag) in enumerate(stocks):
-    data = get_market_data(ticker)
-    with cols[i % 3]:
-        st.markdown('<div class="card-container">', unsafe_allow_html=True)
-        if data:
-            pct = ((data['curr'] - data['prev']) / data['prev']) * 100
-            color = "#30d158" if pct >= 0 else "#ff453a"
-            
-            st.markdown(f'<div class="stock-name">{flag} {name}</div>', unsafe_allow_html=True)
-            st.markdown(f'<div class="price-val">{data["curr"]:,.2f}</div>', unsafe_allow_html=True)
-            st.markdown(f'<div class="change-val" style="color: {color};">{pct:+.2f}%</div>', unsafe_allow_html=True)
-            
-            fig = px.line(data['df'], y='Price')
-            
-            # 💡【解決策】グラフに触っても反応しないようにする設定
-            fig.update_layout(
-                margin=dict(l=0, r=0, t=5, b=5),
-                height=150,
-                xaxis_visible=False,
-                yaxis_visible=False,
-                yaxis=dict(fixedrange=True, autorange=True), # ズーム不可
-                xaxis=dict(fixedrange=True),                # ズーム不可
-                hovermode=False,                             # ホバー時の数値を非表示
-                paper_bgcolor="rgba(0,0,0,0)",
-                plot_bgcolor="rgba(0,0,0,0)",
-                showlegend=False,
-                dragmode=False                               # ドラッグ操作を無効化
-            )
-            fig.update_traces(
-                line_color='#1f77b4', 
-                line_width=3,
-                hoverinfo='none'                             # 個別のデータ点反応も消す
-            )
-            
-            # configで右上のツールバーも非表示にする
-            st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False, 'staticPlot': True})
-            
-        else:
-            st.markdown(f'<div class="stock-name">{flag} {name}</div>', unsafe_allow_html=True)
-            st.error("データ取得エラー")
-        st.markdown('</div>', unsafe_allow_html=True)
+if prices_data:
+    for i, s in enumerate(symbols):
+        with cols[i % 3]:
+            p = prices_data.get(s)
+            if isinstance(p, dict):
+                curr = p.get('regularMarketPrice', 0)
+                prev = p.get('regularMarketPreviousClose', 1)
+                high = p.get('regularMarketDayHigh', 0)
+                low = p.get('regularMarketDayLow', 0)
+                
+                # ゴールド計算
+                if s == "GC=F":
+                    curr, prev, high, low = [(v * fx_rate / 31.1035) for v in [curr, prev, high, low]]
 
-time.sleep(10)
+                diff = curr - prev
+                pct = (diff / prev) * 100
+                color = "#30d158" if pct >= 0 else "#ff453a"
+
+                st.markdown(f'''
+                    <div class="card-container">
+                        <div class="stock-name">{flags[i]} {names[i]}</div>
+                        <div class="price-val">{curr:,.2f}</div>
+                        <div class="change-val" style="color: {color};">{diff:+,.2f} ({pct:+.2f}%)</div>
+                ''', unsafe_allow_html=True)
+                
+                # チャート表示
+                try:
+                    df = history_data.loc[s]['close']
+                    fig = px.line(y=df)
+                    fig.update_layout(margin=dict(l=0,r=0,t=0,b=0), height=60, xaxis_visible=False, yaxis_visible=False, paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", showlegend=False)
+                    fig.update_traces(line_color='#0a84ff', line_width=2)
+                    st.plotly_chart(fig, use_container_width=True, config={'staticPlot': True}, key=f"fig_{s}")
+                except: pass
+
+                st.markdown(f'''
+                        <table class="info-table">
+                            <tr><td class="info-label">終値</td><td class="info-value">{prev:,.2f}</td></tr>
+                            <tr><td class="info-label">高値</td><td class="info-value">{high:,.2f}</td></tr>
+                            <tr><td class="info-label">安値</td><td class="info-value">{low:,.2f}</td></tr>
+                        </table>
+                    </div>
+                ''', unsafe_allow_html=True)
+else:
+    st.error("データ取得エラー。API制限の可能性があります。")
+
+time.sleep(20) # 20秒間隔が最速・安全のバランス
 st.rerun()
