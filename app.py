@@ -5,7 +5,7 @@ import time
 from datetime import datetime
 import plotly.graph_objects as go
 
-st.set_page_config(page_title="Market Fix", layout="wide", initial_sidebar_state="collapsed")
+st.set_page_config(page_title="Market Board 12", layout="wide", initial_sidebar_state="collapsed")
 
 # 漆黒のデザイン
 st.markdown("""
@@ -16,21 +16,25 @@ st.markdown("""
         background-color: #1c1c1e; margin-bottom: 12px; text-align: center; min-height: 200px;
     }
     .stock-name { font-size: 14px; font-weight: bold; color: #8e8e93; margin-bottom: 5px; }
-    .price-val { font-size: 32px; font-weight: bold; color: #ffffff; line-height: 1.1; }
+    .price-val { font-size: 30px; font-weight: bold; color: #ffffff; line-height: 1.1; }
     .change-val { font-size: 16px; font-weight: bold; margin-bottom: 10px; }
     </style>
     """, unsafe_allow_html=True)
 
-# あなたが指定した8銘柄を確実に表示
+# 💡 指定された12銘柄のみを設定
 config = [
     {"name": "日経平均", "symbol": "^N225"},
-    {"name": "日経先物", "symbol": "NIY=F"},
-    {"name": "日経時間外", "symbol": "NIY=F"},
+    {"name": "日経先物ラージ", "symbol": "NIY=F"},
+    {"name": "日経時間外", "symbol": "NIY=F"}, # シンボル補完
     {"name": "TOPIX", "symbol": "1306.T"},
-    {"name": "TOPIX先物", "symbol": "1306.T"},
-    {"name": "ドル円", "symbol": "JPY=X"},
-    {"name": "ゴールド(円/g)", "symbol": "GC=F"},
-    {"name": "BTC(円)", "symbol": "BTC-JPY"}
+    {"name": "TOPIX先物", "symbol": "1306.T"}, # シンボル補完
+    {"name": "ダウ平均", "symbol": "^DJI"},
+    {"name": "ドル円 USD/JPY", "symbol": "JPY=X"},
+    {"name": "ナスダック", "symbol": "^IXIC"},
+    {"name": "半導体指数", "symbol": "^SOX"},
+    {"name": "S&P500", "symbol": "^GSPC"},
+    {"name": "ビットコイン国内", "symbol": "BTC-JPY"},
+    {"name": "ゴールド円グラム", "symbol": "GC=F"}
 ]
 
 if 'cache' not in st.session_state:
@@ -54,38 +58,36 @@ def get_data(name, symbol):
     except: pass
     return st.session_state.cache[name]
 
-# 描画
+# 描画開始
 ut = datetime.now().strftime("%H:%M:%S")
-fx = get_data("ドル円", "JPY=X")['p'] or 150.0
-cols = st.columns(2)
+fx_rate = get_data("ドル円 USD/JPY", "JPY=X")['p'] or 150.0
+cols = st.columns(3) # 12銘柄なので3列が見やすいです
 
 for i, item in enumerate(config):
-    with cols[i % 2]:
+    with cols[i % 3]:
         d = get_data(item['name'], item['symbol'])
         p, v = d['p'], d['v']
         
+        # ゴールド円グラム計算 (トロイオンスからg/円へ)
         if item['symbol'] == "GC=F" and p > 0:
-            p, v = [(x * fx / 31.1035) for x in [p, v]]
+            p, v = [(x * fx_rate / 31.1035) for x in [p, v]]
 
         diff, pct = p - v, ( (p-v)/v*100 if v>0 else 0 )
         color = "#30d158" if pct >= 0 else "#ff453a"
 
-        # 💡 エラーの原因だった書き方を、最も安定した方法に修正
-        if p > 1000:
-            disp_p = f"{p:,.1f}"
-        else:
-            disp_p = f"{p:,.2f}"
+        # 価格表示の整形（エラー回避版）
+        disp_p = f"{p:,.1f}" if p > 1000 else f"{p:,.2f}"
 
         st.markdown(f'''<div class="card-container">
             <div class="stock-name">{item['name']}</div>
-            <div style="font-size: 10px; color: #636366; margin-bottom: 8px;">{ut}</div>
+            <div style="font-size: 10px; color: #636366; margin-bottom: 8px;">{ut} 更新</div>
             <div class="price-val">{disp_p}</div>
             <div class="change-val" style="color: {color};">{diff:+,.1f} ({pct:+.2f}%)</div>''', unsafe_allow_html=True)
         
         if d['h']:
             fig = go.Figure(data=go.Scatter(y=d['h'], mode='lines', line=dict(color='#007aff', width=3)))
-            fig.update_layout(margin=dict(l=0,r=0,t=0,b=0), height=80, xaxis_visible=False, yaxis_visible=False, paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
-            st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False, 'staticPlot': True}, key=f"g_{i}")
+            fig.update_layout(margin=dict(l=0,r=0,t=0,b=0), height=70, xaxis_visible=False, yaxis_visible=False, paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
+            st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False, 'staticPlot': True}, key=f"k_{i}")
 
-time.sleep(60)
+time.sleep(10)
 st.rerun()
