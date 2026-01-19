@@ -91,6 +91,7 @@ for i, s in enumerate(symbols):
 
         st.markdown(f'''<table class="info-table"><tr><td>前日終値</td><td style="text-align:right">{v:,.2f}</td></tr></table></div>''', unsafe_allow_html=True)
 
-# 1分更新
-time.sleep(60)
+# 10s更新
+time.sleep(10)
 st.rerun()
+
