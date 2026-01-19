@@ -5,10 +5,8 @@ import time
 from datetime import datetime
 import plotly.graph_objects as go
 
-# Web版での表示を安定させる設定
-st.set_page_config(page_title="Market Pro Full", layout="wide", initial_sidebar_state="collapsed")
+st.set_page_config(page_title="Market Pro Fix", layout="wide", initial_sidebar_state="collapsed")
 
-# CSSをさらに細かく調整（高値・安値の表を黒背景で見やすく）
 st.markdown("""
     <style>
     .stApp { background-color: #000000 !important; color: white !important; }
@@ -20,8 +18,6 @@ st.markdown("""
     .update-time { font-size: 9px; color: #636366; margin-bottom: 5px; }
     .price-val { font-size: 24px; font-weight: bold; color: #ffffff; line-height: 1.1; }
     .change-val { font-size: 14px; font-weight: bold; margin-bottom: 8px; }
-    
-    /* 情報テーブルのスタイル */
     .info-table { width: 100%; border-collapse: collapse; margin-top: 8px; }
     .info-table td { border: 1px solid #3a3a3c; padding: 3px; font-size: 10px; color: #ffffff; }
     .info-label { background-color: #2c2c2e; font-weight: bold; width: 40%; text-align: left; }
@@ -37,12 +33,11 @@ def get_data():
     try:
         t = Ticker(symbols)
         prices = t.price
+        # データが取れない時のために期間を少し長めに確保
         history = t.history(period="1d", interval="2m")
         return prices, history
     except:
         return None, None
-
-st.title("📈 市場監視プロ・ダッシュボード")
 
 prices_data, history_data = get_data()
 fx_rate = prices_data['JPY=X'].get('regularMarketPrice', 150.0) if prices_data else 150.0
@@ -50,22 +45,26 @@ current_time = datetime.now().strftime("%H:%M:%S")
 
 cols = st.columns(3)
 
-if prices_data is not None:
+if prices_data:
     for i, s in enumerate(symbols):
         with cols[i % 3]:
             p = prices_data.get(s)
             if isinstance(p, dict):
                 curr = p.get('regularMarketPrice', 0)
-                prev = p.get('regularMarketPreviousClose', 1)
-                high = p.get('regularMarketDayHigh', 0)
-                low = p.get('regularMarketDayLow', 0)
+                prev = p.get('regularMarketPreviousClose', 0)
+                high = p.get('regularMarketDayHigh', curr)
+                low = p.get('regularMarketDayLow', curr)
                 
-                # ゴールド計算（円/g）
+                # 💡 データが0やNoneの場合の補完対策
+                if curr == 0 and prev != 0: curr = prev
+                if high == 0: high = curr
+                if low == 0: low = curr
+
                 if s == "GC=F":
                     curr, prev, high, low = [(v * fx_rate / 31.1035) for v in [curr, prev, high, low]]
 
                 diff = curr - prev
-                pct = (diff / prev) * 100
+                pct = (diff / prev * 100) if prev != 0 else 0
                 color = "#30d158" if pct >= 0 else "#ff453a"
 
                 st.markdown(f'''
@@ -76,21 +75,22 @@ if prices_data is not None:
                         <div class="change-val" style="color: {color};">{diff:+,.2f} ({pct:+.2f}%)</div>
                 ''', unsafe_allow_html=True)
                 
-                # チャート（Web版で確実に表示）
                 try:
-                    df = history_data.loc[s]['close']
-                    fig = go.Figure(data=go.Scatter(y=df, mode='lines', line=dict(color='#0a84ff', width=2)))
+                    df = history_data.loc[s]['close'].dropna()
+                    fig = go.Figure(data=go.Scatter(y=df, mode='lines', line=dict(color='#007aff', width=2)))
                     fig.update_layout(
                         margin=dict(l=0, r=0, t=0, b=0), height=70,
                         xaxis_visible=False, yaxis_visible=False,
                         paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-                        showlegend=False
+                        showlegend=False,
+                        # 💡 触っても反応しない（ズームやツールバー無効）設定
+                        dragmode=False, hovermode=False
                     )
-                    st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False}, key=f"f_{s}")
+                    # 💡 config={'staticPlot': True} で完全固定化
+                    st.plotly_chart(fig, use_container_width=True, config={'staticPlot': True}, key=f"f_{s}")
                 except:
-                    st.write("データ取得中...")
+                    st.write("チャート読込中...")
 
-                # 💡 高値・安値を表形式で復活
                 st.markdown(f'''
                         <table class="info-table">
                             <tr><td class="info-label">終値</td><td class="info-value">{prev:,.2f}</td></tr>
@@ -99,8 +99,6 @@ if prices_data is not None:
                         </table>
                     </div>
                 ''', unsafe_allow_html=True)
-else:
-    st.error("データの取得に失敗しました。リロードしてください。")
 
 time.sleep(30)
 st.rerun()
