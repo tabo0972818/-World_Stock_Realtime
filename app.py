@@ -5,82 +5,92 @@ import time
 from datetime import datetime
 import plotly.graph_objects as go
 
-st.set_page_config(page_title="Market Pro Max", layout="wide", initial_sidebar_state="collapsed")
+# 💡 コンソール負荷軽減のため設定
+st.set_page_config(page_title="Market Pro Realtime", layout="wide", initial_sidebar_state="collapsed")
 
-# 背景・デザイン（CSS）
+# 背景・カードデザイン（CSS）
 st.markdown("""
     <style>
     .stApp { background-color: #000000 !important; color: white !important; }
     .card-container {
-        border: 1px solid #3a3a3c; border-radius: 10px; padding: 10px; 
-        background-color: #1c1c1e; margin-bottom: 8px; text-align: center; min-height: 250px;
+        border: 1px solid #3a3a3c; border-radius: 10px; padding: 12px; 
+        background-color: #1c1c1e; margin-bottom: 10px; text-align: center; min-height: 240px;
     }
-    .stock-name { font-size: 13px; font-weight: bold; color: #8e8e93; margin-bottom: 2px; }
-    .price-val { font-size: 26px; font-weight: bold; color: #ffffff; line-height: 1.1; }
-    .change-val { font-size: 14px; font-weight: bold; margin-bottom: 8px; }
+    .stock-name { font-size: 14px; font-weight: bold; color: #8e8e93; margin-bottom: 5px; }
+    .price-val { font-size: 28px; font-weight: bold; color: #ffffff; line-height: 1.1; }
+    .change-val { font-size: 16px; font-weight: bold; margin-bottom: 10px; }
+    .info-table { width: 100%; border-top: 1px solid #3a3a3c; margin-top: 10px; }
+    .info-table td { padding: 5px; font-size: 11px; color: #ffffff; }
     </style>
     """, unsafe_allow_html=True)
 
-# 💡 裏ルート：日本市場で取れない銘柄は、シカゴ市場(CME)等のシンボルで代用
-# 日経時間外（NK225E=F）→ CME日経先物（NIY=F）
-# TOPIX先物（MTI=F）→ TOPIX（1306.T）
+# 💡 【重要】配信が止まっている銘柄を、現在動いている代替銘柄に差し替えました
+# 日経時間外（NK225E=F）→ NIY=F（CME日経先物：ほぼ24時間稼働）
+# TOPIX先物（MTI=F）→ 1306.T（TOPIX ETF：現物データ）
 symbols = ["^N225", "NIY=F", "NIY=F", "1306.T", "1306.T", "JPY=X", "^DJI", "^IXIC", "^SOX", "GC=F", "^GSPC", "BTC-JPY"]
 names = ["日経平均", "日経先物", "日経時間外", "TOPIX", "TOPIX先物", "ドル円", "ダウ平均", "ナスダック", "半導体指数", "ゴールド(円/g)", "S&P500", "BTC(円)"]
 
-if 'p_store' not in st.session_state:
-    st.session_state.p_store = {s: {'p': 0.0, 'v': 0.0, 'h': []} for s in symbols}
+if 'data_cache' not in st.session_state:
+    st.session_state.data_cache = {s: {'p': 0.0, 'v': 0.0, 'h': []} for s in symbols}
 
-def fetch_pro(s):
+def fetch_market_data(s):
     try:
-        t = Ticker(s)
-        # 💡 価格取得（複数候補から一番マシな値を探す）
+        # 💡 コンソール警告を減らすため1つずつ取得
+        t = Ticker(s, asynchronous=False)
         p_info = t.price[s]
+        
+        # 正常な価格が出るまで候補を探す
         curr = p_info.get('regularMarketPrice') or p_info.get('preMarketPrice') or p_info.get('regularMarketPreviousClose') or 0.0
         prev = p_info.get('regularMarketPreviousClose') or curr
         
-        if curr > 0: st.session_state.p_store[s]['p'] = curr
-        if prev > 0: st.session_state.p_store[s]['v'] = prev
+        if curr > 0: st.session_state.data_cache[s]['p'] = curr
+        if prev > 0: st.session_state.data_cache[s]['v'] = prev
 
-        # 💡 グラフ取得
+        # 履歴取得
         try:
             h = t.history(period="3d", interval="30m")
             if not h.empty:
-                vals = h.iloc[:, 0].dropna().tolist()
-                if vals: st.session_state.p_store[s]['h'] = vals
+                h_list = h.iloc[:, 0].dropna().tolist()
+                if h_list: st.session_state.data_cache[s]['h'] = h_list
         except: pass
     except: pass
-    return st.session_state.p_store[s]
+    return st.session_state.data_cache[s]
 
-# 表示
-cur_time = datetime.now().strftime("%H:%M:%S")
+# メイン描画
+update_time = datetime.now().strftime("%H:%M:%S")
 cols = st.columns(3)
-fx_val = fetch_pro("JPY=X")['p'] or 150.0
+
+# ドル円確保
+fx_data = fetch_market_data("JPY=X")
+current_fx = fx_data['p'] or 150.0
 
 for i, s in enumerate(symbols):
     with cols[i % 3]:
-        d = fetch_pro(s)
-        p, v = d['p'], d['v']
+        data = fetch_market_data(s)
+        p, v = data['p'], data['v']
         
+        # ゴールド円換算
         if s == "GC=F" and p > 0:
-            p, v = [(x * fx_val / 31.1035) for x in [p, v]]
+            p, v = [(val * current_fx / 31.1035) for val in [p, v]]
 
         diff = p - v
         pct = (diff / v * 100) if v > 0 else 0
         color = "#30d158" if pct >= 0 else "#ff453a"
 
-        # 特殊：TOPIX先物(1306.T)を表示する時だけ名前を戻す
-        display_name = names[i]
-
         st.markdown(f'''<div class="card-container">
-            <div class="stock-name">{display_name}</div>
-            <div style="font-size: 9px; color: #636366;">{cur_time} Update</div>
+            <div class="stock-name">{names[i]}</div>
+            <div style="font-size: 10px; color: #636366; margin-bottom: 8px;">{update_time} 更新</div>
             <div class="price-val">{p:,.2f}</div>
             <div class="change-val" style="color: {color};">{diff:+,.2f} ({pct:+.2f}%)</div>''', unsafe_allow_html=True)
         
-        if d['h']:
-            fig = go.Figure(data=go.Scatter(y=d['h'], mode='lines', line=dict(color='#007aff', width=2)))
+        # チャート表示（コンソール警告抑制のため staticPlot 使用）
+        if data['h']:
+            fig = go.Figure(data=go.Scatter(y=data['h'], mode='lines', line=dict(color='#007aff', width=2)))
             fig.update_layout(margin=dict(l=0,r=0,t=0,b=0), height=70, xaxis_visible=False, yaxis_visible=False, paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
-            st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False, 'staticPlot': True}, key=f"k_{i}")
+            st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False, 'staticPlot': True}, key=f"chart_{i}")
 
+        st.markdown(f'''<table class="info-table"><tr><td>前日終値</td><td style="text-align:right">{v:,.2f}</td></tr></table></div>''', unsafe_allow_html=True)
+
+# 1分更新
 time.sleep(60)
 st.rerun()
