@@ -7,7 +7,7 @@ import plotly.graph_objects as go
 
 st.set_page_config(page_title="Market Pro Perfect", layout="wide", initial_sidebar_state="collapsed")
 
-# 背景黒・カードデザイン
+# 背景・カードデザイン（CSS）
 st.markdown("""
     <style>
     .stApp { background-color: #000000 !important; color: white !important; }
@@ -24,76 +24,76 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# 銘柄リスト
 symbols = ["^N225", "NIY=F", "NK225E=F", "1306.T", "MTI=F", "JPY=X", "^DJI", "^IXIC", "^SOX", "GC=F", "^GSPC", "BTC-JPY"]
 names = ["日経平均", "日経先物", "日経時間外", "TOPIX", "TOPIX先物", "ドル円", "ダウ平均", "ナスダック", "半導体指数", "ゴールド(円/g)", "S&P500", "BTC(円)"]
 flags = ["🇯🇵", "🇯🇵🚀", "🇯🇵⏰", "🇯🇵", "🇯🇵🚀", "🇯🇵🇺🇸", "🇺🇸", "🇺🇸", "🇺🇸🚀", "🟡", "🇺🇸", "₿"]
 
-# 💡 データが空でも前回の値を維持するための保存領域
-if 'data_cache' not in st.session_state:
-    st.session_state.data_cache = {s: {'price': 0.0, 'prev': 0.0, 'hist': []} for s in symbols}
+# 💡 データが空や0の時に「前回の成功データ」を使い回す保存領域
+if 'data_store' not in st.session_state:
+    st.session_state.data_store = {s: {'price': 0.0, 'prev': 0.0, 'hist': []} for s in symbols}
 
-def fetch_data_robust(symbol):
+def fetch_safe(symbol):
     try:
         t = Ticker(symbol)
-        p = t.price[symbol]
+        # 💡 価格・前日終値の取得
+        p_info = t.price[symbol]
         
-        # 💡 TOPIX先物などの「0.00」を回避するロジック
-        raw_price = p.get('regularMarketPrice') or 0.0
-        raw_prev = p.get('regularMarketPreviousClose') or 0.0
+        # 💡 異常値（0.0）を徹底的に回避する
+        curr = p_info.get('regularMarketPrice') or p_info.get('regularMarketPreviousClose') or 0.0
+        prev = p_info.get('regularMarketPreviousClose') or curr
         
-        # 0以外の有効な値が取れた時だけ更新
-        if raw_price > 0:
-            st.session_state.data_cache[symbol]['price'] = raw_price
-        if raw_prev > 0:
-            st.session_state.data_cache[symbol]['prev'] = raw_prev
-        
-        # グラフ履歴（3日分取得し、失敗しても前回の履歴を維持）
+        # 💡 もしYahooから0が返ってきたら、セッションに保存されている過去の値を採用する
+        if curr > 0:
+            st.session_state.data_store[symbol]['price'] = curr
+        if prev > 0:
+            st.session_state.data_store[symbol]['prev'] = prev
+
+        # 💡 履歴（グラフ）の取得
         try:
             h = t.history(period="3d", interval="30m")
             if not h.empty and symbol in h.index:
-                hist_vals = h.loc[symbol]['close'].dropna().tolist()
-                if hist_vals: st.session_state.persistent_data[symbol]['hist'] = hist_vals
+                h_list = h.loc[symbol]['close'].dropna().tolist()
+                if h_list: st.session_state.data_store[symbol]['hist'] = h_list
         except: pass
     except: pass
-    return st.session_state.data_cache[symbol]
+    return st.session_state.data_store[symbol]
 
-# レイアウト
+# レイアウト描画
 current_time = datetime.now().strftime("%H:%M:%S")
 cols = st.columns(3)
 
-# ドル円を真っ先に取得
-fx_data = fetch_data_robust("JPY=X")
+# ドル円を真っ先に計算用に確保
+fx_data = fetch_safe("JPY=X")
 fx_rate = fx_data['price'] or 150.0
 
 for i, s in enumerate(symbols):
     with cols[i % 3]:
-        data = fetch_data_robust(s)
-        curr, prev = data['price'], data['prev']
+        d = fetch_safe(s)
+        p, pr = d['price'], d['prev']
         
-        # 💡 ゴールドの円換算計算
-        if s == "GC=F" and curr > 0:
-            curr, prev = [(v * fx_rate / 31.1035) for v in [curr, prev]]
+        # 💡 ゴールドの円換算（ドル円レートを掛ける）
+        if s == "GC=F" and p > 0:
+            p, pr = [(v * fx_rate / 31.1035) for v in [p, pr]]
 
-        diff = curr - prev
-        pct = (diff / prev * 100) if prev > 0 else 0
+        diff = p - pr
+        pct = (diff / pr * 100) if pr > 0 else 0
         color = "#30d158" if pct >= 0 else "#ff453a"
 
         st.markdown(f'''<div class="card-container">
             <div class="stock-name">{flags[i]} {names[i]}</div>
             <div class="update-time">{current_time} 更新</div>
-            <div class="price-val">{curr:,.2f}</div>
+            <div class="price-val">{p:,.2f}</div>
             <div class="change-val" style="color: {color};">{diff:+,.2f} ({pct:+.2f}%)</div>''', unsafe_allow_html=True)
         
-        # グラフ描画
-        if data['hist']:
-            fig = go.Figure(data=go.Scatter(y=data['hist'], mode='lines', line=dict(color='#007aff', width=2)))
+        # グラフ描画（データがあれば）
+        if d['hist']:
+            fig = go.Figure(data=go.Scatter(y=d['hist'], mode='lines', line=dict(color='#007aff', width=2)))
             fig.update_layout(margin=dict(l=0,r=0,t=0,b=0), height=70, xaxis_visible=False, yaxis_visible=False, paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", dragmode=False)
-            st.plotly_chart(fig, use_container_width=True, config={'staticPlot': True}, key=f"f_{s}")
+            st.plotly_chart(fig, use_container_width=True, config={'staticPlot': True}, key=f"fig_{s}")
         else:
-            st.write("チャート読込中...")
+            st.write("データ取得中...")
 
-        st.markdown(f'''<table class="info-table"><tr><td style="background-color:#2c2c2e; width:40%;">前日終値</td><td style="text-align:right">{prev:,.2f}</td></tr></table></div>''', unsafe_allow_html=True)
+        st.markdown(f'''<table class="info-table"><tr><td style="background-color:#2c2c2e; width:40%;">終値</td><td style="text-align:right">{pr:,.2f}</td></tr></table></div>''', unsafe_allow_html=True)
 
 time.sleep(60)
 st.rerun()
