@@ -5,8 +5,9 @@ import time
 from datetime import datetime
 import plotly.graph_objects as go
 
-st.set_page_config(page_title="Market Board 12", layout="wide", initial_sidebar_state="collapsed")
+st.set_page_config(page_title="Market Board Pro", layout="wide", initial_sidebar_state="collapsed")
 
+# 💡 ボタンを中央に寄せるためのスタイルを追加
 st.markdown("""
     <style>
     .stApp { background-color: #000000 !important; color: white !important; }
@@ -17,10 +18,18 @@ st.markdown("""
     .stock-name { font-size: 14px; font-weight: bold; color: #8e8e93; margin-bottom: 5px; }
     .price-val { font-size: 30px; font-weight: bold; color: #ffffff; line-height: 1.1; }
     .change-val { font-size: 16px; font-weight: bold; margin-bottom: 10px; }
+    /* ボタンを目立たせる */
+    div.stButton > button {
+        width: 100%; border-radius: 20px; background-color: #007aff; color: white; border: none; font-weight: bold;
+    }
     </style>
     """, unsafe_allow_html=True)
 
-# 💡 ご指定の12銘柄
+# 💡 更新ボタンの設置
+if st.button('🔄 今すぐ最新データに更新'):
+    st.rerun()
+
+# 指定の12銘柄
 config = [
     {"name": "日経平均", "symbol": "^N225"},
     {"name": "日経先物ラージ", "symbol": "NIY=F"},
@@ -77,5 +86,6 @@ for i, item in enumerate(config):
             fig.update_layout(margin=dict(l=0,r=0,t=0,b=0), height=70, xaxis_visible=False, yaxis_visible=False, paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
             st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False, 'staticPlot': True}, key=f"k_{i}")
 
-time.sleep(60)
+# 自動更新も維持
+time.sleep(10)
 st.rerun()
