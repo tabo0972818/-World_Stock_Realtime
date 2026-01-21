@@ -5,12 +5,19 @@ import time
 from datetime import datetime
 import plotly.graph_objects as go
 
-st.set_page_config(page_title="Market Board Pro", layout="wide", initial_sidebar_state="collapsed")
+# 💡 ページ設定
+st.set_page_config(page_title="リアルタイム株価確認(1秒更新)", layout="wide", initial_sidebar_state="collapsed")
 
-# 💡 ボタンを中央に寄せるためのスタイルを追加
+# 漆黒のデザイン
 st.markdown("""
     <style>
     .stApp { background-color: #000000 !important; color: white !important; }
+    /* 💡 題名のスタイル */
+    .main-title {
+        font-size: 36px; font-weight: 800; color: #ffffff; text-align: center;
+        margin-bottom: 20px; letter-spacing: 2px; border-bottom: 2px solid #007aff;
+        padding-bottom: 10px; font-family: 'Arial Black', sans-serif;
+    }
     .card-container {
         border: 1px solid #3a3a3c; border-radius: 10px; padding: 15px; 
         background-color: #1c1c1e; margin-bottom: 12px; text-align: center; min-height: 200px;
@@ -18,14 +25,16 @@ st.markdown("""
     .stock-name { font-size: 14px; font-weight: bold; color: #8e8e93; margin-bottom: 5px; }
     .price-val { font-size: 30px; font-weight: bold; color: #ffffff; line-height: 1.1; }
     .change-val { font-size: 16px; font-weight: bold; margin-bottom: 10px; }
-    /* ボタンを目立たせる */
     div.stButton > button {
-        width: 100%; border-radius: 20px; background-color: #007aff; color: white; border: none; font-weight: bold;
+        width: 100%; border-radius: 20px; background-color: #007aff; color: white; border: none; font-weight: bold; margin-bottom: 20px;
     }
     </style>
     """, unsafe_allow_html=True)
 
-# 💡 更新ボタンの設置
+# 💡 画面に題名を表示
+st.markdown('<div class="main-title">REALTIME MARKET BOARD</div>', unsafe_allow_html=True)
+
+# 更新ボタン
 if st.button('🔄 今すぐ最新データに更新'):
     st.rerun()
 
@@ -86,7 +95,5 @@ for i, item in enumerate(config):
             fig.update_layout(margin=dict(l=0,r=0,t=0,b=0), height=70, xaxis_visible=False, yaxis_visible=False, paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
             st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False, 'staticPlot': True}, key=f"k_{i}")
 
-# 自動更新も維持
 time.sleep(1)
 st.rerun()
-
