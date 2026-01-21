@@ -5,18 +5,18 @@ import time
 from datetime import datetime
 import plotly.graph_objects as go
 
-# 💡 ページ設定
+# ページ設定
 st.set_page_config(page_title="REALTIME MARKET BOARD", layout="wide", initial_sidebar_state="collapsed")
 
 # 漆黒のデザイン
 st.markdown("""
     <style>
     .stApp { background-color: #000000 !important; color: white !important; }
-    /* 💡 題名のスタイル */
+    /* 💡 タイトルのデザインをさらに強化 */
     .main-title {
-        font-size: 36px; font-weight: 800; color: #ffffff; text-align: center;
-        margin-bottom: 20px; letter-spacing: 2px; border-bottom: 2px solid #007aff;
-        padding-bottom: 10px; font-family: 'Arial Black', sans-serif;
+        font-size: 32px; font-weight: 900; color: #ffffff; text-align: center;
+        padding: 20px 0px; letter-spacing: 1px; border-bottom: 3px solid #007aff;
+        margin-bottom: 25px; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
     }
     .card-container {
         border: 1px solid #3a3a3c; border-radius: 10px; padding: 15px; 
@@ -25,20 +25,22 @@ st.markdown("""
     .stock-name { font-size: 14px; font-weight: bold; color: #8e8e93; margin-bottom: 5px; }
     .price-val { font-size: 30px; font-weight: bold; color: #ffffff; line-height: 1.1; }
     .change-val { font-size: 16px; font-weight: bold; margin-bottom: 10px; }
+    /* ボタンのデザイン */
     div.stButton > button {
-        width: 100%; border-radius: 20px; background-color: #007aff; color: white; border: none; font-weight: bold; margin-bottom: 20px;
+        width: 100%; border-radius: 20px; background-color: #007aff; color: white; 
+        border: none; font-weight: bold; height: 45px; margin-bottom: 20px;
     }
     </style>
     """, unsafe_allow_html=True)
 
-# 💡 画面に題名を表示
+# 💡 題名を一番上に配置
 st.markdown('<div class="main-title">REALTIME MARKET BOARD</div>', unsafe_allow_html=True)
 
-# 更新ボタン
+# 💡 更新ボタン
 if st.button('🔄 今すぐ最新データに更新'):
     st.rerun()
 
-# 指定の12銘柄
+# 12銘柄の設定
 config = [
     {"name": "日経平均", "symbol": "^N225"},
     {"name": "日経先物ラージ", "symbol": "NIY=F"},
@@ -71,6 +73,7 @@ def get_data(name, symbol):
     except: pass
     return st.session_state.cache[name]
 
+# 描画
 ut = datetime.now().strftime("%H:%M:%S")
 fx_rate = get_data("ドル円 USD/JPY", "JPY=X")['p'] or 150.0
 cols = st.columns(3)
