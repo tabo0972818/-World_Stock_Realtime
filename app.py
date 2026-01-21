@@ -6,7 +6,7 @@ from datetime import datetime
 import plotly.graph_objects as go
 
 # 💡 ページ設定
-st.set_page_config(page_title="リアルタイム株価確認(1秒更新)", layout="wide", initial_sidebar_state="collapsed")
+st.set_page_config(page_title="REALTIME MARKET BOARD", layout="wide", initial_sidebar_state="collapsed")
 
 # 漆黒のデザイン
 st.markdown("""
