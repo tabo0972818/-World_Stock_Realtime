@@ -7,7 +7,6 @@ import plotly.graph_objects as go
 
 st.set_page_config(page_title="Market Board 12", layout="wide", initial_sidebar_state="collapsed")
 
-# 漆黒のデザイン
 st.markdown("""
     <style>
     .stApp { background-color: #000000 !important; color: white !important; }
@@ -21,13 +20,13 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# 💡 指定された12銘柄のみを設定
+# 💡 ご指定の12銘柄
 config = [
     {"name": "日経平均", "symbol": "^N225"},
     {"name": "日経先物ラージ", "symbol": "NIY=F"},
-    {"name": "日経時間外", "symbol": "NIY=F"}, # シンボル補完
+    {"name": "日経時間外", "symbol": "NIY=F"},
     {"name": "TOPIX", "symbol": "1306.T"},
-    {"name": "TOPIX先物", "symbol": "1306.T"}, # シンボル補完
+    {"name": "TOPIX先物", "symbol": "1306.T"},
     {"name": "ダウ平均", "symbol": "^DJI"},
     {"name": "ドル円 USD/JPY", "symbol": "JPY=X"},
     {"name": "ナスダック", "symbol": "^IXIC"},
@@ -44,38 +43,27 @@ def get_data(name, symbol):
     try:
         t = yf.Ticker(symbol)
         info = t.fast_info
-        curr = info['last_price']
-        prev = info['previous_close']
-        
+        curr, prev = info['last_price'], info['previous_close']
         if curr > 0: st.session_state.cache[name]['p'] = curr
         if prev > 0: st.session_state.cache[name]['v'] = prev
-
         try:
             h = t.history(period="3d", interval="30m")
-            if not h.empty:
-                st.session_state.cache[name]['h'] = h['Close'].dropna().tolist()
+            if not h.empty: st.session_state.cache[name]['h'] = h['Close'].dropna().tolist()
         except: pass
     except: pass
     return st.session_state.cache[name]
 
-# 描画開始
 ut = datetime.now().strftime("%H:%M:%S")
 fx_rate = get_data("ドル円 USD/JPY", "JPY=X")['p'] or 150.0
-cols = st.columns(3) # 12銘柄なので3列が見やすいです
+cols = st.columns(3)
 
 for i, item in enumerate(config):
     with cols[i % 3]:
         d = get_data(item['name'], item['symbol'])
         p, v = d['p'], d['v']
-        
-        # ゴールド円グラム計算 (トロイオンスからg/円へ)
-        if item['symbol'] == "GC=F" and p > 0:
-            p, v = [(x * fx_rate / 31.1035) for x in [p, v]]
-
+        if item['symbol'] == "GC=F" and p > 0: p, v = [(x * fx_rate / 31.1035) for x in [p, v]]
         diff, pct = p - v, ( (p-v)/v*100 if v>0 else 0 )
         color = "#30d158" if pct >= 0 else "#ff453a"
-
-        # 価格表示の整形（エラー回避版）
         disp_p = f"{p:,.1f}" if p > 1000 else f"{p:,.2f}"
 
         st.markdown(f'''<div class="card-container">
@@ -89,5 +77,5 @@ for i, item in enumerate(config):
             fig.update_layout(margin=dict(l=0,r=0,t=0,b=0), height=70, xaxis_visible=False, yaxis_visible=False, paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
             st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False, 'staticPlot': True}, key=f"k_{i}")
 
-time.sleep(10)
+time.sleep(60)
 st.rerun()
